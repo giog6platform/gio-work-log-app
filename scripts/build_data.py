@@ -125,9 +125,9 @@ for f in sorted(glob.glob(os.path.join(ROOT, "data/reports/*.json"))):
         items.append({
             "id": f"R-{slug}-{n}", "ref": None, "source": r["source"], "title": title,
             "area": x["area"], "status": x["status"], "kind": x.get("kind") or kind_of(title), "mine": True,
-            "owner": "Gio", "onBoard": False, "lane": None, "description": clean(x.get("description")),
-            "evidence": "", "impact": clean(x.get("impact")), "start": r["start"], "end": r["date"],
-            "doneAt": r["date"] if x["status"] == "Done" else None,
+            "owner": clean(x.get("owner")) or "Gio", "onBoard": False, "lane": None, "description": clean(x.get("description")),
+            "evidence": clean(x.get("note")), "impact": clean(x.get("impact")), "start": x.get("start") or r["start"],
+            "end": x.get("doneAt") or r["date"], "doneAt": (x.get("doneAt") or r["date"]) if x["status"] == "Done" else None,
             "tasks": [{"title": clean(t["title"]), "detail": clean(t.get("detail")), "owner": "", "start": r["start"], "end": r["date"]}
                       for t in x.get("tasks", [])],
         })
