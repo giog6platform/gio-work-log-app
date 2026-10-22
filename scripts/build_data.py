@@ -1,0 +1,126 @@
+"""Build public/data.json from the task inventory and the scrum board export.
+
+Usage: python3 scripts/build_data.py [task_context.json] [board_dir]
+Writes data/out/data.json (gitignored). In production it is uploaded as a Render secret file.
+Strips emails, phone numbers and source links so nothing identifying ships with the site.
+"""
+import glob, json, os, re, sys
+from datetime import datetime, timezone
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INV = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "data/task_context.json")
+BOARD = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "data/board")
+OUT = os.path.join(ROOT, "data/out/data.json")
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
+
+EMAIL = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
+PHONE = re.compile(r"(?<![\w-])\+?1?[\s.(-]*\d{3}[\s.)-]*\d{3}[\s.-]*\d{4}(?!\d)")
+TOKEN = re.compile(r"\b(sk|pk|pit|gho|ghp|AKIA)[-_A-Za-z0-9]{12,}\b")
+
+def clean(s):
+    if not s:
+        return ""
+    s = EMAIL.sub("[email]", str(s))
+    s = PHONE.sub("[phone]", s)
+    return TOKEN.sub("[secret]", s).strip()
+
+def iso_ms(ms):
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat().replace("+00:00", "Z") if ms else None
+
+KIND_RULES = [
+    ("Fix", r"\b(fix|bug|broken|error|repair|wrong|incident|breach|drops?|junk|bad|failing|fail)"),
+    ("Security", r"\b(security|pentest|clerk|password|credential|key rotation|mfa|2fa|access|cve)"),
+    ("Support", r"\b(help|support|question|request|onboard|training|login|account)"),
+    ("Migration", r"\b(migrat|import|backfill|transfer|move|keap)"),
+    ("Build", r"\b(build|create|set ?up|launch|new|dashboard|agent|workflow|sequence|automation|integration)"),
+]
+
+def kind_of(text):
+    t = text.lower()
+    for k, rx in KIND_RULES:
+        if re.search(rx, t):
+            return k
+    return "Update"
+
+STATUS = {
+    "done": "Done", "in progress": "In Progress", "improved": "In Progress", "not started": "Planned",
+    "planned": "Planned", "paused": "Paused", "deprecated": "Deprecated", "unconfirmed": "Unconfirmed",
+    "not mine": "Not Mine",
+}
+LANE_STATUS = {"Blocked": "Waiting", "On hold": "Paused", "Parked": "Paused", "Active": "In Progress"}
+BUCKET_STATUS = {
+    "done": "Done", "today": "In Progress", "docket": "Planned", "will": "Planned", "waiting": "Waiting",
+    "keep": "Monitoring", "paused": "Paused", "team": "Teammate",
+}
+AREA_MAP = {
+    "Deliverability": "Email & outreach", "Dashboard": "Dashboards & reporting", "Brighton": "CRM & migrations",
+    "DDN": "CRM & migrations", "GHL": "CRM & migrations", "Prime": "CRM & migrations",
+    "Data and Keap": "CRM & migrations", "Fleet": "Automation & AI", "JustCall": "Calls & messaging",
+    "Builds": "Commerce & operations", "": "Current work",
+}
+
+def words(t):
+    return {w for w in re.findall(r"[a-z0-9]+", t.lower()) if len(w) > 2}
+
+inv = json.load(open(INV))
+items = []
+for i in inv["items"]:
+    status = STATUS.get(i["user_status"], "Unconfirmed")
+    if i.get("board_lane") in LANE_STATUS and status not in ("Done",):
+        status = LANE_STATUS[i["board_lane"]]
+    mine = i["ownership"] != "Other owner / team / vendor" and i["user_status"] != "not mine"
+    tasks = [{
+        "title": clean(r.get("title")), "detail": clean(r.get("request")), "owner": clean(r.get("owner")),
+        "start": r.get("first_date"), "end": r.get("last_date"),
+    } for r in i.get("historical_requests", [])]
+    tasks.sort(key=lambda t: t["start"] or "")
+    title = clean(i["title"])
+    items.append({
+        "id": f"T{i['id']}", "ref": i["id"], "source": "Inventory", "title": title,
+        "area": i["project"] if i["project"] != "CRM & attribution" else "CRM & migrations",
+        "status": status, "kind": kind_of(title + " " + " ".join(t["title"] for t in tasks)),
+        "mine": mine, "owner": clean(i.get("owner")), "onBoard": bool(i.get("current_board")),
+        "lane": i.get("board_lane"), "description": clean(i.get("user_notes")) or clean(i.get("historical_evidence_summary")),
+        "evidence": clean(i.get("historical_evidence_summary")), "start": i.get("first_date"),
+        "end": i.get("last_date"), "doneAt": i.get("last_date") if status == "Done" else None, "tasks": tasks,
+    })
+
+# Board cards: attach done dates to matching inventory items, add the rest as their own items.
+by_words = [(it, words(it["title"])) for it in items]
+for f in sorted(glob.glob(os.path.join(BOARD, "*.json"))):
+    c = json.load(open(f))
+    if c.get("id", "").startswith("tpl-") or os.path.basename(f).startswith("tpl-"):
+        continue
+    title = clean(c.get("title"))
+    status = BUCKET_STATUS.get(c.get("bucket"), "Planned")
+    w = words(title)
+    match = None
+    for it, iw in by_words:
+        if w and iw and len(w & iw) / min(len(w), len(iw)) >= 0.75:
+            match = it
+            break
+    done_at = iso_ms(c.get("doneAt")) if status == "Done" else None
+    if match:
+        match["onBoard"] = True
+        if done_at and match["status"] == "Done":
+            match["doneAt"] = done_at
+        continue
+    items.append({
+        "id": "B-" + os.path.basename(f)[:-5], "ref": None, "source": "Scrum Board", "title": title,
+        "area": AREA_MAP.get(c.get("area", ""), "Current work"), "status": status,
+        "kind": kind_of(title + " " + (c.get("summary") or "")), "mine": c.get("owner") == "Gio",
+        "owner": clean(c.get("owner")), "onBoard": True, "lane": c.get("bucket"),
+        "description": clean(c.get("summary")), "evidence": clean(c.get("notes")),
+        "start": iso_ms(c.get("createdAt")), "end": iso_ms(c.get("updatedAt")) or iso_ms(c.get("createdAt")),
+        "doneAt": done_at, "due": c.get("due"), "tasks": [],
+    })
+
+meta = inv["metadata"]
+out = {
+    "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "snapshot": meta.get("latest_user_confirmation"),
+    "coverage": [meta.get("coverage_start"), meta.get("coverage_end")],
+    "items": items,
+}
+json.dump(out, open(OUT, "w"), separators=(",", ":"))
+print(f"{len(items)} items -> {OUT} ({os.path.getsize(OUT)//1024} KB)")

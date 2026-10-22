@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: gio-work-log
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: "echo no build"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: SITE_USER
+        value: gio
+      - key: SITE_PASSWORD
+        generateValue: true

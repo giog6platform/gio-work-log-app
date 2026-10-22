@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Gio Work Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --panel-2: #f1f1ee; --line: #e4e3df; --line-2: #d6d5d0;
+  --text: #1b1b19; --muted: #6b6a65; --faint: #9a9993; --accent: #3b5bdb; --accent-soft: #e8ecfb;
+  --done: #2f9e44; --done-soft: #e6f4e9; --prog: #1c7ed6; --prog-soft: #e3f0fb;
+  --wait: #e67700; --wait-soft: #fdf1e1; --plan: #7048e8; --plan-soft: #efeafd;
+  --pause: #868e96; --pause-soft: #eef0f2; --mon: #0c8599; --mon-soft: #e1f3f5;
+  --unc: #868e96; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111110; --panel: #1a1a19; --panel-2: #222220; --line: #2c2c2a; --line-2: #3a3a37;
+    --text: #ececea; --muted: #a3a29c; --faint: #73726d; --accent: #7b93f5; --accent-soft: #1f2540;
+    --done: #51cf66; --done-soft: #17301d; --prog: #4dabf7; --prog-soft: #132a3d;
+    --wait: #ffa94d; --wait-soft: #3a2812; --plan: #9775fa; --plan-soft: #261d42;
+    --pause: #adb5bd; --pause-soft: #262829; --mon: #3bc9db; --mon-soft: #11303a;
+    --unc: #868e96; --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111110; --panel: #1a1a19; --panel-2: #222220; --line: #2c2c2a; --line-2: #3a3a37;
+  --text: #ececea; --muted: #a3a29c; --faint: #73726d; --accent: #7b93f5; --accent-soft: #1f2540;
+  --done: #51cf66; --done-soft: #17301d; --prog: #4dabf7; --prog-soft: #132a3d;
+  --wait: #ffa94d; --wait-soft: #3a2812; --plan: #9775fa; --plan-soft: #261d42;
+  --pause: #adb5bd; --pause-soft: #262829; --mon: #3bc9db; --mon-soft: #11303a;
+  --unc: #868e96; --shadow: 0 1px 2px rgba(0,0,0,.3);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 Inter, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px 80px; }
+header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top-inner { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 12px; align-items: center; }
+.brand { font-weight: 700; letter-spacing: -.01em; font-size: 15px; white-space: nowrap; }
+.brand small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
+.search { flex: 1; min-width: 0; position: relative; }
+.search input { width: 100%; padding: 8px 12px 8px 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; outline: none; }
+.search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+.icon-btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; flex: none; }
+.icon-btn:hover { border-color: var(--line-2); }
+
+.kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 20px 0 14px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; text-align: left; transition: border-color .15s, transform .15s; }
+.kpi:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.kpi.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.kpi .n { font: 600 24px/1.1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: -.02em; }
+.kpi .l { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.tabs { display: inline-flex; background: var(--panel-2); border-radius: 10px; padding: 3px; gap: 2px; }
+.tab { border: 0; background: transparent; padding: 6px 14px; border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 500; }
+.tab.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
+.spacer { flex: 1; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 11px; cursor: pointer; font-size: 12.5px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.chip.on { color: var(--text); border-color: var(--text); }
+.chip:hover { border-color: var(--line-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; }
+.toggle input { accent-color: var(--accent); }
+
+.area { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.area-h { width: 100%; border: 0; background: transparent; display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; align-items: center; padding: 14px 16px; cursor: pointer; text-align: left; }
+.area-h:hover { background: var(--panel-2); }
+.area-title { font-weight: 600; font-size: 15px; }
+.area-meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.prog { height: 6px; border-radius: 99px; background: var(--panel-2); overflow: hidden; display: flex; width: 160px; }
+.prog span { display: block; height: 100%; }
+.area-right { display: flex; align-items: center; gap: 14px; }
+.area-pct { font: 500 12px "JetBrains Mono", monospace; color: var(--muted); width: 38px; text-align: right; }
+.chev { transition: transform .2s; color: var(--faint); }
+.open > .area-h .chev, .open > .row-h .chev, .open > .task-h .chev { transform: rotate(90deg); }
+.area-body { border-top: 1px solid var(--line); display: none; }
+.area.open .area-body { display: block; }
+
+.row { border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row-h { width: 100%; border: 0; background: transparent; display: grid; grid-template-columns: 16px auto 1fr auto; gap: 10px; align-items: center; padding: 10px 16px 10px 22px; cursor: pointer; text-align: left; }
+.row-h:hover { background: var(--panel-2); }
+.row-title { font-weight: 500; min-width: 0; }
+.row-title .sub { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-right { display: flex; gap: 8px; align-items: center; color: var(--faint); font-size: 12px; white-space: nowrap; }
+.row-body { display: none; padding: 4px 22px 16px 48px; }
+.row.open .row-body { display: block; animation: fade .18s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+.pill { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.kind { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); padding: 1px 7px; border-radius: 6px; }
+.desc { color: var(--text); margin: 6px 0 10px; max-width: 760px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+.facts b { color: var(--text); font-weight: 500; }
+.evidence { font-size: 12.5px; color: var(--muted); border-left: 2px solid var(--line-2); padding-left: 10px; margin: 0 0 12px; max-width: 760px; }
+.tasks-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin: 8px 0 6px; }
+.task { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; background: var(--bg); }
+.task-h { width: 100%; border: 0; background: transparent; display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; padding: 8px 12px; cursor: pointer; text-align: left; align-items: center; }
+.task-h span.t { font-weight: 500; font-size: 13px; }
+.task-h span.d { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.task-b { display: none; padding: 0 12px 10px 36px; font-size: 13px; color: var(--muted); }
+.task.open .task-b { display: block; }
+.task-b p { margin: 0 0 6px; color: var(--text); }
+
+.chart { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 18px; }
+.chart-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
+.chart-h h3 { margin: 0; font-size: 14px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.bars { display: flex; gap: 6px; align-items: flex-end; height: 140px; }
+.bcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; min-width: 0; }
+.bstack { width: 100%; max-width: 46px; display: flex; flex-direction: column-reverse; border-radius: 6px 6px 3px 3px; overflow: hidden; transition: opacity .15s; }
+.bcol:hover .bstack { opacity: .8; }
+.bcol .bl { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.bcol.sel .bl { color: var(--text); font-weight: 600; }
+
+.month { margin-bottom: 22px; }
+.month-h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; position: sticky; top: 61px; background: var(--bg); padding: 6px 0; z-index: 2; }
+.month-h h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+.month-h span { color: var(--muted); font-size: 12.5px; }
+.rail { position: relative; padding-left: 26px; }
+.rail::before { content: ""; position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--line); border-radius: 2px; }
+.ev { position: relative; margin-bottom: 8px; }
+.ev::before { content: ""; position: absolute; left: -23px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--panel); border: 2px solid var(--c, var(--faint)); }
+.ev .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.ev .row-h { padding: 9px 14px; grid-template-columns: 14px 64px 1fr auto; }
+.ev .row-body { padding: 0 14px 14px 40px; }
+.ev-date { font: 500 12px "JetBrains Mono", monospace; color: var(--muted); }
+.ev-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+
+.empty { text-align: center; color: var(--muted); padding: 60px 0; }
+.foot { color: var(--faint); font-size: 12px; margin-top: 28px; text-align: center; }
+.more { display: block; margin: 8px auto 0; }
+
+@media (max-width: 760px) {
+  .kpis { grid-template-columns: repeat(3, 1fr); }
+  .kpi:nth-child(n+4) { display: none; }
+  .prog { width: 70px; }
+  .row-h { grid-template-columns: 16px 1fr auto; padding-left: 14px; }
+  .row-h .pill { display: none; }
+  .row-right .kind, .row-right .tc { display: none; }
+  .row-body { padding: 4px 14px 14px 18px; }
+  .ev .row-h { grid-template-columns: 14px 1fr auto; }
+  .ev .ev-date { display: none; }
+  .brand small { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner">
+  <div class="brand">Gio Work Log<small id="asof"></small></div>
+  <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search tasks, projects, notes" autocomplete="off"></label>
+  <button class="icon-btn" id="theme" title="Toggle theme" aria-label="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg></button>
+</div></header>
+
+<main class="wrap">
+  <section class="kpis" id="kpis"></section>
+  <div class="bar">
+    <div class="tabs" role="tablist">
+      <button class="tab" data-tab="projects">Projects</button>
+      <button class="tab" data-tab="timeline">Timeline</button>
+      <button class="tab" data-tab="completed">Completed</button>
+    </div>
+    <div class="spacer"></div>
+    <label class="toggle"><input type="checkbox" id="unc" checked> Include Unconfirmed</label>
+    <label class="toggle"><input type="checkbox" id="team"> Include Team / Vendor</label>
+  </div>
+  <div class="chips" id="kinds"></div>
+  <section id="view"></section>
+  <p class="foot" id="foot"></p>
+</main>
+
+<script>
+const STATUS = {
+  "Done": "done", "In Progress": "prog", "Waiting": "wait", "Planned": "plan", "Paused": "pause",
+  "Monitoring": "mon", "Unconfirmed": "unc", "Teammate": "pause", "Not Mine": "pause", "Deprecated": "pause",
+};
+const KPI = ["Done", "In Progress", "Waiting", "Planned", "Paused"];
+const KINDS = ["Build", "Fix", "Support", "Migration", "Security", "Update"];
+const S = { tab: "projects", q: "", status: null, kinds: new Set(), unc: true, team: false, open: new Set(), month: null, limit: {} };
+let DATA = [];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const col = st => `var(--${STATUS[st] || "unc"})`;
+const soft = st => STATUS[st] === "unc" ? "transparent" : `var(--${STATUS[st] || "pause"}-soft)`;
+const pill = st => `<span class="pill" style="color:${col(st)};background:${soft(st)};${STATUS[st] === "unc" ? "border:1px dashed var(--line-2)" : ""}">${esc(st)}</span>`;
+const fmt = (d, o = { month: "short", day: "numeric", year: "numeric" }) => d ? new Date(d).toLocaleDateString("en-US", o) : "";
+const mkey = d => d ? d.slice(0, 7) : null;
+const mlabel = k => new Date(k + "-15").toLocaleDateString("en-US", { month: "long", year: "numeric" });
+const span = (a, b) => { const o = { month: "short", day: "numeric" }; return fmt(a, o) + (b && a && b.slice(0, 10) !== a.slice(0, 10) ? " – " + fmt(b, o) : ""); };
+const chev = `<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 6 6 6-6 6"/></svg>`;
+
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+function base() {
+  const q = S.q.trim().toLowerCase();
+  return DATA.filter(i => {
+    if (!S.team && !i.mine) return false;
+    if (!S.unc && i.status === "Unconfirmed") return false;
+    if (S.kinds.size && !S.kinds.has(i.kind)) return false;
+    if (q && !i._hay.includes(q)) return false;
+    return true;
+  });
+}
+const filtered = () => base().filter(i => !S.status || i.status === S.status);
+
+function renderKpis() {
+  const b = base();
+  $("#kpis").innerHTML = KPI.map(st => `<button class="kpi ${S.status === st ? "on" : ""}" data-st="${st}">
+    <div class="n">${b.filter(i => i.status === st).length}</div>
+    <div class="l"><span class="dot" style="background:${col(st)}"></span>${st === "Done" ? "Completed" : st}</div></button>`).join("");
+}
+
+function renderKinds() {
+  $("#kinds").innerHTML = `<button class="chip ${S.kinds.size ? "" : "on"}" data-kind="">All Types</button>` +
+    KINDS.map(k => `<button class="chip ${S.kinds.has(k) ? "on" : ""}" data-kind="${k}">${k}</button>`).join("") +
+    (S.status ? `<button class="chip on" data-clear="1">Status: ${esc(S.status)} ✕</button>` : "");
+}
+
+function itemBody(i) {
+  const facts = [
+    i.owner && `<span>Owner <b>${esc(i.owner)}</b></span>`,
+    i.start && `<span>Started <b>${fmt(i.start)}</b></span>`,
+    i.doneAt ? `<span>Completed <b>${fmt(i.doneAt)}</b></span>` : i.end && `<span>Last Activity <b>${fmt(i.end)}</b></span>`,
+    i.due && `<span>Due <b>${fmt(i.due + "T12:00:00")}</b></span>`,
+    `<span>Source <b>${esc(i.source)}${i.ref ? " #" + i.ref : ""}</b></span>`,
+    i.onBoard && `<span><b>On Scrum Board</b></span>`,
+  ].filter(Boolean).join("");
+  const ev = i.evidence && i.evidence !== i.description ? `<p class="evidence">${esc(i.evidence)}</p>` : "";
+  const tasks = i.tasks.length ? `<div class="tasks-label">Tasks (${i.tasks.length})</div>` + i.tasks.map((t, n) => {
+    const id = `${i.id}:${n}`;
+    return `<div class="task ${S.open.has(id) ? "open" : ""}" data-id="${esc(id)}">
+      <button class="task-h" data-toggle="${esc(id)}">${chev}<span class="t">${esc(t.title)}</span><span class="d">${span(t.start, t.end)}</span></button>
+      <div class="task-b"><p>${esc(t.detail || "No description recorded.")}</p>${t.owner ? `Owner: ${esc(t.owner)}` : ""}</div></div>`;
+  }).join("") : "";
+  return `<p class="desc">${esc(i.description || "No description recorded.")}</p><div class="facts">${facts}</div>${ev}${tasks}`;
+}
+
+function itemRow(i) {
+  const d = i.doneAt || i.end || i.start;
+  return `<div class="row ${S.open.has(i.id) ? "open" : ""}" data-id="${esc(i.id)}">
+    <button class="row-h" data-toggle="${esc(i.id)}">${chev}${pill(i.status)}
+      <span class="row-title">${esc(i.title)}${i.description ? `<span class="sub">${esc(i.description)}</span>` : ""}</span>
+      <span class="row-right"><span class="kind">${esc(i.kind)}</span>${i.tasks.length ? `<span class="tc">${i.tasks.length} task${i.tasks.length > 1 ? "s" : ""}</span>` : ""}<span>${fmt(d, { month: "short", day: "numeric" })}</span></span>
+    </button><div class="row-body">${S.open.has(i.id) ? itemBody(i) : ""}</div></div>`;
+}
+
+const ORDER = ["In Progress", "Waiting", "Planned", "Monitoring", "Unconfirmed", "Paused", "Teammate", "Done", "Not Mine", "Deprecated"];
+const byRecent = (a, b) => (b.doneAt || b.end || b.start || "").localeCompare(a.doneAt || a.end || a.start || "");
+
+function renderProjects(list) {
+  const areas = {};
+  list.forEach(i => (areas[i.area] ||= []).push(i));
+  const names = Object.keys(areas).sort((a, b) => areas[b].length - areas[a].length);
+  if (!names.length) return `<div class="empty">Nothing matches these filters.</div>`;
+  return names.map(n => {
+    const its = areas[n].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || byRecent(a, b));
+    const counts = {}; its.forEach(i => counts[i.status] = (counts[i.status] || 0) + 1);
+    const done = counts.Done || 0, pct = Math.round(100 * done / its.length);
+    const segs = ORDER.filter(s => counts[s]).map(s => `<span style="width:${100 * counts[s] / its.length}%;background:${STATUS[s] === "unc" ? "var(--line-2)" : col(s)}"></span>`).join("");
+    const key = "area:" + n, lim = S.limit[key] || 40;
+    const meta = ["In Progress", "Waiting", "Planned"].filter(s => counts[s]).map(s => `${counts[s]} ${s.toLowerCase()}`);
+    return `<div class="area ${S.open.has(key) ? "open" : ""}">
+      <button class="area-h" data-toggle="${esc(key)}">${chev}<div><div class="area-title">${esc(n)}</div>
+        <div class="area-meta">${its.length} items · ${done} completed${meta.length ? " · " + meta.join(" · ") : ""}</div></div>
+        <div class="area-right"><div class="prog">${segs}</div><span class="area-pct">${pct}%</span></div></button>
+      <div class="area-body">${S.open.has(key) ? its.slice(0, lim).map(itemRow).join("") + (its.length > lim ? `<button class="chip more" data-more="${esc(key)}">Show ${Math.min(40, its.length - lim)} more</button>` : "") : ""}</div></div>`;
+  }).join("");
+}
+
+function events(list, mode) {
+  const ev = [];
+  list.forEach(i => {
+    if (i.doneAt && mode !== "started") ev.push({ i, d: i.doneAt, t: "Completed", c: "var(--done)" });
+    if (mode !== "completed" && i.start) ev.push({ i, d: i.start, t: "Started", c: col(i.status === "Done" ? "In Progress" : i.status) });
+  });
+  return ev.sort((a, b) => b.d.localeCompare(a.d));
+}
+
+function chart(list, mode) {
+  const done = {}, started = {};
+  list.forEach(i => { if (i.doneAt) done[mkey(i.doneAt)] = (done[mkey(i.doneAt)] || 0) + 1; if (i.start && mode !== "completed") started[mkey(i.start)] = (started[mkey(i.start)] || 0) + 1; });
+  const keys = [...new Set([...Object.keys(done), ...Object.keys(started)])].sort();
+  if (!keys.length) return "";
+  const max = Math.max(...keys.map(k => (done[k] || 0) + (started[k] || 0)));
+  return `<div class="chart"><div class="chart-h"><h3>Activity by Month</h3>
+    <div class="legend"><span><i class="dot" style="background:var(--done)"></i>Completed</span>${mode !== "completed" ? `<span><i class="dot" style="background:var(--prog)"></i>Started</span>` : ""}${S.month ? `<button class="chip on" data-month="">${mlabel(S.month)} ✕</button>` : ""}</div></div>
+    <div class="bars">${keys.map(k => {
+      const h = v => (v / max) * 110;
+      return `<div class="bcol ${S.month === k ? "sel" : ""}" data-month="${k}" title="${mlabel(k)}: ${done[k] || 0} completed, ${started[k] || 0} started">
+        <div class="bstack"><span style="height:${h(done[k] || 0)}px;background:var(--done)"></span><span style="height:${h(started[k] || 0)}px;background:var(--prog);opacity:.55"></span></div>
+        <span class="bl">${new Date(k + "-15").toLocaleDateString("en-US", { month: "short" })}${k.endsWith("-01") || k === keys[0] ? " ’" + k.slice(2, 4) : ""}</span></div>`;
+    }).join("")}</div></div>`;
+}
+
+function renderTimeline(list, mode) {
+  let ev = events(list, mode);
+  if (S.month) ev = ev.filter(e => mkey(e.d) === S.month);
+  if (!ev.length) return chart(list, mode) + `<div class="empty">Nothing matches these filters.</div>`;
+  const months = {}; ev.forEach(e => (months[mkey(e.d)] ||= []).push(e));
+  const key = "tl:" + mode, lim = S.limit[key] || 120;
+  let shown = 0;
+  const html = Object.keys(months).sort().reverse().map(m => {
+    if (shown >= lim) return "";
+    const es = months[m].slice(0, lim - shown); shown += es.length;
+    const nd = months[m].filter(e => e.t === "Completed").length;
+    return `<div class="month"><div class="month-h"><h2>${mlabel(m)}</h2><span>${months[m].length} events${mode === "both" ? ` · ${nd} completed` : ""}</span></div>
+      <div class="rail">${es.map(e => {
+        const id = e.t + "|" + e.i.id;
+        return `<div class="ev" style="--c:${e.c}"><div class="card row ${S.open.has(id) ? "open" : ""}">
+          <button class="row-h" data-toggle="${esc(id)}">${chev}<span class="ev-date">${fmt(e.d, { month: "short", day: "numeric" })}</span>
+          <span class="row-title">${esc(e.i.title)}<span class="sub">${esc(e.i.area)} · ${esc(e.i.kind)}</span></span>
+          <span class="row-right"><span class="ev-tag" style="color:${e.c}">${e.t}</span></span></button>
+          <div class="row-body">${S.open.has(id) ? `<div style="margin-bottom:6px">${pill(e.i.status)}</div>` + itemBody(e.i) : ""}</div></div></div>`;
+      }).join("")}</div></div>`;
+  }).join("");
+  return chart(list, mode) + html + (ev.length > lim ? `<button class="chip more" data-more="${key}">Show more</button>` : "");
+}
+
+function render() {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === S.tab));
+  renderKpis(); renderKinds();
+  const list = filtered();
+  const v = $("#view");
+  if (S.tab === "projects") v.innerHTML = renderProjects(list);
+  else if (S.tab === "timeline") v.innerHTML = renderTimeline(list, "both");
+  else v.innerHTML = renderTimeline(list.filter(i => i.doneAt), "completed");
+}
+
+function toggleOpen(id, el) {
+  S.open.has(id) ? S.open.delete(id) : S.open.add(id);
+  const box = el.parentElement;
+  box.classList.toggle("open", S.open.has(id));
+  const body = box.querySelector(":scope > .row-body, :scope > .area-body");
+  if (!body) return;
+  if (box.classList.contains("area")) { body.innerHTML = ""; render(); return; }
+  const item = DATA.find(i => i.id === (id.includes("|") ? id.split("|")[1] : id));
+  if (item && S.open.has(id) && !body.innerHTML) body.innerHTML = (id.includes("|") ? `<div style="margin-bottom:6px">${pill(item.status)}</div>` : "") + itemBody(item);
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-toggle],[data-tab],[data-st],[data-kind],[data-clear],[data-month],[data-more]");
+  if (!t) return;
+  if (t.dataset.toggle !== undefined) return toggleOpen(t.dataset.toggle, t);
+  if (t.dataset.tab) { S.tab = t.dataset.tab; S.month = null; history.replaceState(null, "", "#" + S.tab); }
+  else if (t.dataset.st) S.status = S.status === t.dataset.st ? null : t.dataset.st;
+  else if (t.dataset.kind !== undefined) { const k = t.dataset.kind; if (!k) S.kinds.clear(); else S.kinds.has(k) ? S.kinds.delete(k) : S.kinds.add(k); }
+  else if (t.dataset.clear) S.status = null;
+  else if (t.dataset.month !== undefined) S.month = S.month === t.dataset.month || !t.dataset.month ? null : t.dataset.month;
+  else if (t.dataset.more) S.limit[t.dataset.more] = (S.limit[t.dataset.more] || (t.dataset.more.startsWith("tl") ? 120 : 40)) + (t.dataset.more.startsWith("tl") ? 120 : 40);
+  render();
+});
+let qt; $("#q").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { S.q = e.target.value; render(); }, 120); });
+$("#unc").addEventListener("change", e => { S.unc = e.target.checked; render(); });
+$("#team").addEventListener("change", e => { S.team = e.target.checked; render(); });
+$("#theme").addEventListener("click", () => {
+  const dark = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() === "#111110";
+  document.documentElement.dataset.theme = dark ? "light" : "dark"; store("theme", document.documentElement.dataset.theme);
+});
+const th = load("theme"); if (th) document.documentElement.dataset.theme = th;
+const h = location.hash.slice(1); if (["projects", "timeline", "completed"].includes(h)) S.tab = h;
+
+fetch(location.origin + "/data.json", { cache: "no-store" }).then(r => r.json()).then(d => {
+  DATA = d.items.map(i => ({ ...i, _hay: [i.title, i.area, i.description, i.evidence, i.owner, i.kind, i.status, ...i.tasks.map(t => t.title + " " + t.detail)].join(" ").toLowerCase() }));
+  $("#asof").textContent = "Snapshot " + fmt(d.snapshot) + " · " + d.items.filter(i => i.mine).length + " items";
+  $("#foot").textContent = `Sources: task inventory (email-derived, covering ${fmt(d.coverage[0])} to ${fmt(d.coverage[1])}) and the G6 Scrum Board. "Unconfirmed" means not yet confirmed by Gio, not that it is open. Types are auto-tagged from titles.`;
+  render();
+}).catch(() => { $("#view").innerHTML = `<div class="empty">Could not load data.json.</div>`; });
+</script>
+</body>
+</html>
