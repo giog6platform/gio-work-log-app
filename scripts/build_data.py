@@ -60,6 +60,8 @@ AREA_MAP = {
     "Builds": "Commerce & operations", "": "Current work",
 }
 
+GIO = re.compile(r"\b(gio|giovanny|gv)\b", re.I)
+
 def words(t):
     return {w for w in re.findall(r"[a-z0-9]+", t.lower()) if len(w) > 2}
 
@@ -69,7 +71,9 @@ for i in inv["items"]:
     status = STATUS.get(i["user_status"], "Unconfirmed")
     if i.get("board_lane") in LANE_STATUS and status not in ("Done",):
         status = LANE_STATUS[i["board_lane"]]
-    mine = i["ownership"] != "Other owner / team / vendor" and i["user_status"] != "not mine"
+    # Mine only when Gio is named as an owner; shared or unconfirmed ownership stays with Others.
+    mine = (i["ownership"] != "Other owner / team / vendor" and i["user_status"] != "not mine"
+            and bool(GIO.search(i.get("owner") or "")))
     tasks = [{
         "title": clean(r.get("title")), "detail": clean(r.get("request")), "owner": clean(r.get("owner")),
         "start": r.get("first_date"), "end": r.get("last_date"),
@@ -131,6 +135,24 @@ for f in sorted(glob.glob(os.path.join(ROOT, "data/reports/*.json"))):
             "tasks": [{"title": clean(t["title"]), "detail": clean(t.get("detail")), "owner": "", "start": r["start"], "end": r["date"]}
                       for t in x.get("tasks", [])],
         })
+
+# Gio's own status calls (data/overrides.json) win over everything above.
+ov_path = os.path.join(ROOT, "data/overrides.json")
+overrides = json.load(open(ov_path)) if os.path.exists(ov_path) else {}
+for it in items:
+    o = overrides.get(it["id"])
+    if not o:
+        continue
+    for k in ("status", "doneAt", "mine", "area", "kind"):
+        if k in o:
+            it[k] = o[k]
+    if o.get("note"):
+        it["description"] = clean(o["note"]) + (" " + it["description"] if it["description"] else "")
+    for n, st in (o.get("tasks") or {}).items():
+        if int(n) < len(it["tasks"]):
+            it["tasks"][int(n)]["status"] = st
+    if it["status"] == "Done" and not it.get("doneAt"):
+        it["doneAt"] = it["end"]
 
 meta = inv["metadata"]
 out = {

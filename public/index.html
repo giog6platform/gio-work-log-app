@@ -174,7 +174,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
     </div>
     <div class="spacer"></div>
     <label class="toggle"><input type="checkbox" id="unc" checked> Include Unconfirmed</label>
-    <label class="toggle"><input type="checkbox" id="team"> Include Team / Vendor</label>
+    <label class="toggle"><input type="checkbox" id="team"> Include Others / Unassigned</label>
   </div>
   <div class="chips" id="kinds"></div>
   <section id="view"></section>
@@ -244,7 +244,7 @@ function itemBody(i) {
   const tasks = i.tasks.length ? `<div class="tasks-label">Tasks (${i.tasks.length})</div>` + i.tasks.map((t, n) => {
     const id = `${i.id}:${n}`;
     return `<div class="task ${S.open.has(id) ? "open" : ""}" data-id="${esc(id)}">
-      <button class="task-h" data-toggle="${esc(id)}">${chev}<span class="t">${esc(t.title)}</span><span class="d">${span(t.start, t.end)}</span></button>
+      <button class="task-h" data-toggle="${esc(id)}">${chev}<span class="t">${t.status ? pill(t.status) + " " : ""}${esc(t.title)}</span><span class="d">${span(t.start, t.end)}</span></button>
       <div class="task-b"><p>${esc(t.detail || "No description recorded.")}</p>${t.owner ? `Owner: ${esc(t.owner)}` : ""}</div></div>`;
   }).join("") : "";
   return `<p class="desc">${esc(i.description || "No description recorded.")}</p><div class="facts">${facts}</div>${impact}${ev}${tasks}`;
