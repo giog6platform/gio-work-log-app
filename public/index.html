@@ -61,7 +61,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
 
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
-.tabs { display: inline-flex; background: var(--panel-2); border-radius: 10px; padding: 3px; gap: 2px; }
+.tabs { display: inline-flex; flex-wrap: wrap; background: var(--panel-2); border-radius: 10px; padding: 3px; gap: 2px; }
 .tab { border: 0; background: transparent; padding: 6px 14px; border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 500; }
 .tab.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
 .spacer { flex: 1; }
@@ -179,6 +179,8 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
       <button class="tab" data-tab="timeline">Timeline</button>
       <button class="tab" data-tab="ongoing">Ongoing</button>
       <button class="tab" data-tab="completed">Completed</button>
+      <button class="tab" data-tab="blocked">Blocked</button>
+      <button class="tab" data-tab="dropped">No Longer Needed</button>
     </div>
     <div class="spacer"></div>
     <label class="toggle"><input type="checkbox" id="unc" checked> Include Unconfirmed</label>
@@ -373,6 +375,15 @@ function renderOngoing(list) {
   return `<div class="area open"><div class="og-head"><span>${list.length} standing responsibilities</span>${axis}</div><div class="area-body">${rows}</div></div>`;
 }
 
+// Status-grouped lists for the Blocked and No Longer Needed tabs.
+function renderGroups(list, statuses, labels) {
+  const groups = statuses.map(st => [st, list.filter(i => i.status === st).sort(byRecent)]).filter(([, its]) => its.length);
+  if (!groups.length) return `<div class="empty">Nothing here with these filters.</div>`;
+  return groups.map(([st, its]) => `<div class="area open"><div class="area-h" style="cursor:default;grid-template-columns:1fr auto">
+      <div><div class="area-title">${esc(labels[st] || st)}</div><div class="area-meta">${its.length} item${its.length > 1 ? "s" : ""}</div></div>${pill(st)}</div>
+      <div class="area-body">${its.map(itemRow).join("")}</div></div>`).join("");
+}
+
 function render() {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === S.tab));
   renderKpis(); renderKinds();
@@ -380,6 +391,8 @@ function render() {
   const v = $("#view");
   if (S.tab === "projects") v.innerHTML = renderProjects(list);
   else if (S.tab === "timeline") v.innerHTML = renderTimeline(list, "both");
+  else if (S.tab === "blocked") v.innerHTML = renderGroups(list, ["Waiting", "Paused"], { Waiting: "Blocked / Waiting On Someone", Paused: "Paused / Parked" });
+  else if (S.tab === "dropped") v.innerHTML = renderGroups(list, ["Dropped", "Deprecated", "Not Done"], { Dropped: "Dropped / No Longer Needed", Deprecated: "Deprecated / Retired", "Not Done": "Not Done" });
   else if (S.tab === "ongoing") v.innerHTML = renderOngoing(list.filter(i => ONGOING.includes(i.status)));
   else v.innerHTML = renderTimeline(list.filter(i => i.doneAt), "completed");
 }
@@ -417,7 +430,7 @@ $("#theme").addEventListener("click", () => {
   document.documentElement.dataset.theme = dark ? "light" : "dark"; store("theme", document.documentElement.dataset.theme);
 });
 const th = load("theme"); if (th) document.documentElement.dataset.theme = th;
-const h = location.hash.slice(1); if (["projects", "timeline", "ongoing", "completed"].includes(h)) S.tab = h;
+const h = location.hash.slice(1); if (["projects", "timeline", "ongoing", "completed", "blocked", "dropped"].includes(h)) S.tab = h;
 
 fetch(location.origin + "/data.json", { cache: "no-store" }).then(r => r.json()).then(d => {
   DATA = d.items.map(i => ({ ...i, _hay: [i.title, i.area, i.description, i.evidence, i.owner, i.kind, i.status, ...i.tasks.map(t => t.title + " " + t.detail)].join(" ").toLowerCase() }));
