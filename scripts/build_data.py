@@ -1,5 +1,6 @@
 """Build public/data.json from the task inventory and the scrum board export.
 
+Status reports in data/reports/*.json are merged too.
 Usage: python3 scripts/build_data.py [task_context.json] [board_dir]
 Writes data/out/data.json (gitignored). In production it is uploaded as a Render secret file.
 Strips emails, phone numbers and source links so nothing identifying ships with the site.
@@ -114,6 +115,22 @@ for f in sorted(glob.glob(os.path.join(BOARD, "*.json"))):
         "start": iso_ms(c.get("createdAt")), "end": iso_ms(c.get("updatedAt")) or iso_ms(c.get("createdAt")),
         "doneAt": done_at, "due": c.get("due"), "tasks": [],
     })
+
+# Status reports Gio wrote (data/reports/*.json): items dated at the report's end date.
+for f in sorted(glob.glob(os.path.join(ROOT, "data/reports/*.json"))):
+    r = json.load(open(f))
+    slug = os.path.basename(f)[:-5]
+    for n, x in enumerate(r["items"]):
+        title = clean(x["title"])
+        items.append({
+            "id": f"R-{slug}-{n}", "ref": None, "source": r["source"], "title": title,
+            "area": x["area"], "status": x["status"], "kind": x.get("kind") or kind_of(title), "mine": True,
+            "owner": "Gio", "onBoard": False, "lane": None, "description": clean(x.get("description")),
+            "evidence": "", "impact": clean(x.get("impact")), "start": r["start"], "end": r["date"],
+            "doneAt": r["date"] if x["status"] == "Done" else None,
+            "tasks": [{"title": clean(t["title"]), "detail": clean(t.get("detail")), "owner": "", "start": r["start"], "end": r["date"]}
+                      for t in x.get("tasks", [])],
+        })
 
 meta = inv["metadata"]
 out = {
