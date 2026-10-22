@@ -125,6 +125,12 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
 .bcol.sel .bl { color: var(--text); font-weight: 600; }
 
 .month { margin-bottom: 22px; }
+.og-head { display: grid; grid-template-columns: 1fr 38%; gap: 12px; padding: 12px 16px; color: var(--muted); font-size: 12.5px; align-items: center; }
+.og-axis { position: relative; height: 16px; }
+.og-axis span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--faint); }
+.row-h.og { grid-template-columns: 16px auto 1fr 38%; }
+.og-track { position: relative; height: 8px; background: var(--panel-2); border-radius: 99px; }
+.og-bar { position: absolute; top: 0; height: 8px; border-radius: 99px; }
 .month-h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; position: sticky; top: 61px; background: var(--bg); padding: 6px 0; z-index: 2; }
 .month-h h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
 .month-h span { color: var(--muted); font-size: 12.5px; }
@@ -148,6 +154,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
   .prog { width: 70px; }
   .row-h { grid-template-columns: 16px 1fr auto; padding-left: 14px; }
   .row-h .pill { display: none; }
+  .row-h.og, .og-head { grid-template-columns: 16px 1fr 30%; } .og-head { grid-template-columns: 1fr 30%; }
   .row-right .kind, .row-right .tc { display: none; }
   .row-body { padding: 4px 14px 14px 18px; }
   .ev .row-h { grid-template-columns: 14px 1fr auto; }
@@ -170,6 +177,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
     <div class="tabs" role="tablist">
       <button class="tab" data-tab="projects">Projects</button>
       <button class="tab" data-tab="timeline">Timeline</button>
+      <button class="tab" data-tab="ongoing">Ongoing</button>
       <button class="tab" data-tab="completed">Completed</button>
     </div>
     <div class="spacer"></div>
@@ -186,8 +194,15 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
 const STATUS = {
   "Done": "done", "In Progress": "prog", "Waiting": "wait", "Planned": "plan", "Paused": "pause",
   "Monitoring": "mon", "Unconfirmed": "unc", "Teammate": "pause", "Not Mine": "pause", "Deprecated": "pause",
+  "Likely Done": "done", "Dropped": "pause", "Handed Off": "mon", "Ongoing": "mon", "Partial": "wait", "Not Done": "pause",
 };
-const KPI = ["Done", "In Progress", "Waiting", "Planned", "Paused"];
+// KPI cards group related statuses.
+const GROUPS = {
+  "Completed": ["Done", "Likely Done"], "In Progress": ["In Progress", "Partial"], "Waiting": ["Waiting"],
+  "Planned": ["Planned"], "Ongoing": ["Monitoring", "Ongoing", "Handed Off"],
+};
+const ONGOING = GROUPS.Ongoing;
+const KPI = Object.keys(GROUPS);
 const KINDS = ["Build", "Fix", "Support", "Migration", "Security", "Update"];
 const S = { tab: "projects", q: "", status: null, kinds: new Set(), unc: true, inv: false, team: false, open: new Set(), month: null, limit: {} };
 let DATA = [];
@@ -196,7 +211,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const col = st => `var(--${STATUS[st] || "unc"})`;
 const soft = st => STATUS[st] === "unc" ? "transparent" : `var(--${STATUS[st] || "pause"}-soft)`;
-const pill = st => `<span class="pill" style="color:${col(st)};background:${soft(st)};${STATUS[st] === "unc" ? "border:1px dashed var(--line-2)" : ""}">${esc(st)}</span>`;
+const pill = st => `<span class="pill" style="color:${col(st)};background:${st === "Likely Done" ? "transparent" : soft(st)};${STATUS[st] === "unc" ? "border:1px dashed var(--line-2)" : st === "Likely Done" ? "border:1px dashed var(--done)" : ""}" ${st === "Likely Done" ? 'title="Email evidence shows it finished; not yet confirmed by you"' : ""}>${esc(st)}</span>`;
 const fmt = (d, o = { month: "short", day: "numeric", year: "numeric" }) => d ? new Date(d).toLocaleDateString("en-US", o) : "";
 const mkey = d => d ? d.slice(0, 7) : null;
 const mlabel = k => new Date(k + "-15").toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -218,13 +233,13 @@ function base() {
     return true;
   });
 }
-const filtered = () => base().filter(i => !S.status || i.status === S.status);
+const filtered = () => base().filter(i => !S.status || GROUPS[S.status].includes(i.status));
 
 function renderKpis() {
   const b = base();
   $("#kpis").innerHTML = KPI.map(st => `<button class="kpi ${S.status === st ? "on" : ""}" data-st="${st}">
-    <div class="n">${b.filter(i => i.status === st).length}</div>
-    <div class="l"><span class="dot" style="background:${col(st)}"></span>${st === "Done" ? "Completed" : st}</div></button>`).join("");
+    <div class="n">${b.filter(i => GROUPS[st].includes(i.status)).length}</div>
+    <div class="l"><span class="dot" style="background:${col(GROUPS[st][0])}"></span>${st}</div></button>`).join("");
 }
 
 function renderKinds() {
@@ -263,7 +278,7 @@ function itemRow(i) {
     </button><div class="row-body">${S.open.has(i.id) ? itemBody(i) : ""}</div></div>`;
 }
 
-const ORDER = ["In Progress", "Waiting", "Planned", "Monitoring", "Unconfirmed", "Paused", "Teammate", "Done", "Not Mine", "Deprecated"];
+const ORDER = ["In Progress", "Partial", "Waiting", "Planned", "Monitoring", "Ongoing", "Handed Off", "Unconfirmed", "Paused", "Teammate", "Likely Done", "Done", "Dropped", "Not Mine", "Deprecated", "Not Done"];
 const byRecent = (a, b) => (b.doneAt || b.end || b.start || "").localeCompare(a.doneAt || a.end || a.start || "");
 
 function renderProjects(list) {
@@ -336,6 +351,28 @@ function renderTimeline(list, mode) {
   return chart(list, mode) + html + (ev.length > lim ? `<button class="chip more" data-more="${key}">Show more</button>` : "");
 }
 
+// Ongoing: standing responsibilities drawn as spans across the months they ran.
+function renderOngoing(list) {
+  if (!list.length) return `<div class="empty">Nothing ongoing matches these filters.</div>`;
+  const today = new Date().toISOString();
+  const span = i => [i.ongoingFrom ? i.ongoingFrom + "T12:00:00Z" : i.start, i.ongoingTo ? i.ongoingTo + "T12:00:00Z" : (i.status === "Handed Off" ? i.end : today)];
+  const all = list.map(span).flat().filter(Boolean).sort();
+  const t0 = new Date(all[0].slice(0, 7) + "-01").getTime(), t1 = new Date(today).getTime();
+  const x = d => Math.max(0, Math.min(100, 100 * (new Date(d).getTime() - t0) / (t1 - t0)));
+  const months = [], s0 = new Date(t0);
+  for (let k = 0; ; k++) { const m = new Date(Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + k, 1)); if (m.getTime() > t1) break; months.push(m); }
+  const axis = `<div class="og-axis">${months.map(m => `<span style="left:${x(m.toISOString())}%">${m.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}</span>`).join("")}</div>`;
+  const rows = list.sort((a, b) => (span(b)[1] || "").localeCompare(span(a)[1] || "")).map(i => {
+    const [a, b] = span(i), live = !i.ongoingTo && i.status !== "Handed Off";
+    const who = i.handedTo ? `You → ${esc(i.handedTo)}` : live ? "Active" : "Ended";
+    return `<div class="row ${S.open.has("og|" + i.id) ? "open" : ""}"><button class="row-h og" data-toggle="og|${esc(i.id)}">${chev}${pill(i.status)}
+      <span class="row-title">${esc(i.title)}<span class="sub">${fmt(a, { month: "short", day: "numeric", year: "numeric" })} – ${live ? "now" : fmt(b, { month: "short", day: "numeric", year: "numeric" })} · ${who}</span></span>
+      <span class="og-track"><span class="og-bar" style="left:${x(a)}%;width:${Math.max(1.5, x(b) - x(a))}%;background:${col(i.status)};${live ? "" : "opacity:.55"}"></span></span></button>
+      <div class="row-body">${S.open.has("og|" + i.id) ? itemBody(i) : ""}</div></div>`;
+  }).join("");
+  return `<div class="area open"><div class="og-head"><span>${list.length} standing responsibilities</span>${axis}</div><div class="area-body">${rows}</div></div>`;
+}
+
 function render() {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === S.tab));
   renderKpis(); renderKinds();
@@ -343,6 +380,7 @@ function render() {
   const v = $("#view");
   if (S.tab === "projects") v.innerHTML = renderProjects(list);
   else if (S.tab === "timeline") v.innerHTML = renderTimeline(list, "both");
+  else if (S.tab === "ongoing") v.innerHTML = renderOngoing(list.filter(i => ONGOING.includes(i.status)));
   else v.innerHTML = renderTimeline(list.filter(i => i.doneAt), "completed");
 }
 
@@ -354,7 +392,8 @@ function toggleOpen(id, el) {
   if (!body) return;
   if (box.classList.contains("area")) { body.innerHTML = ""; render(); return; }
   const item = DATA.find(i => i.id === (id.includes("|") ? id.split("|")[1] : id));
-  if (item && S.open.has(id) && !body.innerHTML) body.innerHTML = (id.includes("|") ? `<div style="margin-bottom:6px">${pill(item.status)}</div>` : "") + itemBody(item);
+  const showPill = id.includes("|") && !id.startsWith("og|");
+  if (item && S.open.has(id) && !body.innerHTML) body.innerHTML = (showPill ? `<div style="margin-bottom:6px">${pill(item.status)}</div>` : "") + itemBody(item);
 }
 
 document.addEventListener("click", e => {
@@ -378,12 +417,12 @@ $("#theme").addEventListener("click", () => {
   document.documentElement.dataset.theme = dark ? "light" : "dark"; store("theme", document.documentElement.dataset.theme);
 });
 const th = load("theme"); if (th) document.documentElement.dataset.theme = th;
-const h = location.hash.slice(1); if (["projects", "timeline", "completed"].includes(h)) S.tab = h;
+const h = location.hash.slice(1); if (["projects", "timeline", "ongoing", "completed"].includes(h)) S.tab = h;
 
 fetch(location.origin + "/data.json", { cache: "no-store" }).then(r => r.json()).then(d => {
   DATA = d.items.map(i => ({ ...i, _hay: [i.title, i.area, i.description, i.evidence, i.owner, i.kind, i.status, ...i.tasks.map(t => t.title + " " + t.detail)].join(" ").toLowerCase() }));
   $("#asof").textContent = "Snapshot " + fmt(d.snapshot) + " · " + d.items.filter(i => i.role === "mine").length + " yours";
-  $("#foot").textContent = `Sources: task inventory (email-derived, covering ${fmt(d.coverage[0])} to ${fmt(d.coverage[1])}) and the G6 Scrum Board. "Unconfirmed" means not yet confirmed by Gio, not that it is open. Yours = you are the first-named owner. Involved = you are named but someone else leads. Types are auto-tagged from titles.`;
+  $("#foot").textContent = `Sources: task inventory (email-derived, covering ${fmt(d.coverage[0])} to ${fmt(d.coverage[1])}) and the G6 Scrum Board. "Unconfirmed" means not yet confirmed by Gio, not that it is open. "Likely Done" means the email evidence shows it finished but you haven\'t confirmed it. Yours = you are the first-named owner. Involved = you are named but someone else leads. Types are auto-tagged from titles.`;
   render();
 }).catch(() => { $("#view").innerHTML = `<div class="empty">Could not load data.json.</div>`; });
 </script>

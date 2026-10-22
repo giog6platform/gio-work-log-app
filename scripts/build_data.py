@@ -152,7 +152,7 @@ for it in items:
     o = overrides.get(it["id"])
     if not o:
         continue
-    for k in ("status", "doneAt", "area", "kind"):
+    for k in ("status", "doneAt", "area", "kind", "ongoingFrom", "ongoingTo", "handedTo"):
         if k in o:
             it[k] = o[k]
     if "mine" in o:
@@ -164,6 +164,44 @@ for it in items:
             it["tasks"][int(n)]["status"] = st
     if it["status"] == "Done" and not it.get("doneAt"):
         it["doneAt"] = it["end"]
+
+# Report items that duplicate an inventory item (data/merges.json) fold into it.
+# Status: Gio's call wins, then a Done from either side, then the inventory status.
+mp = os.path.join(ROOT, "data/merges.json")
+merges = json.load(open(mp)) if os.path.exists(mp) else {}
+by_id = {it["id"]: it for it in items}
+DONE = ("Done", "Likely Done")
+for rid, iid in merges.items():
+    r, it = by_id.get(rid), by_id.get(iid)
+    if not r or not it:
+        continue
+    if it.get("gioNote"):
+        pass
+    elif r.get("gioNote"):
+        it["status"], it["doneAt"], it["gioNote"] = r["status"], r.get("doneAt"), r["gioNote"]
+        for k in ("ongoingFrom", "ongoingTo", "handedTo"):
+            if r.get(k):
+                it[k] = r[k]
+    elif r["status"] in DONE and it["status"] not in DONE:
+        it["status"], it["doneAt"] = r["status"], r.get("doneAt") or it["end"]
+    it["evidence"] = " ".join(x for x in (it.get("description"), it.get("evidence")) if x)
+    it["description"] = r["description"]
+    it["impact"] = r.get("impact") or it.get("impact", "")
+    it["source"] = f'{it["source"]} + {r["source"]}'
+    it["tasks"] = it["tasks"] + r["tasks"]
+    if it["role"] == "other":
+        it["role"] = r["role"]
+    items.remove(r)
+
+# Unconfirmed items whose email evidence clearly reads as finished (hand-checked list).
+lp = os.path.join(ROOT, "data/likely_done.json")
+likely = set(json.load(open(lp))) if os.path.exists(lp) else set()
+for it in items:
+    if it["id"] in likely and it["status"] == "Unconfirmed":
+        it["status"], it["doneAt"] = "Likely Done", it["end"]
+    # Standing responsibilities rather than one-off tasks.
+    if it["status"] == "In Progress" and (it.get("description") or "").startswith("Continuous monitoring"):
+        it["status"] = "Monitoring"
 
 # Drop repeated text: evidence that repeats the description, tasks that only restate the item.
 for it in items:
