@@ -31,8 +31,9 @@ def iso_ms(ms):
 KIND_RULES = [
     ("Fix", r"\b(fix|bug|broken|error|repair|wrong|incident|breach|drops?|junk|bad|failing|fail)"),
     ("Security", r"\b(security|pentest|clerk|password|credential|key rotation|mfa|2fa|access|cve)"),
+    ("Migration", r"\b(migrat|import|backfill|transfer|move)"),
+    ("Update", r"\b(update|revise|refresh|change|adjust|cleanup|clean up)"),
     ("Support", r"\b(help|support|question|request|onboard|training|login|account)"),
-    ("Migration", r"\b(migrat|import|backfill|transfer|move|keap)"),
     ("Build", r"\b(build|create|set ?up|launch|new|dashboard|agent|workflow|sequence|automation|integration)"),
 ]
 
@@ -62,6 +63,16 @@ AREA_MAP = {
 
 GIO = re.compile(r"\b(gio|giovanny|gv)\b", re.I)
 
+def role_of(owner):
+    """mine: Gio is the first-named owner. involved: Gio is named but secondary. other: Gio isn't named."""
+    owner = owner or ""
+    if not GIO.search(owner):
+        return "other"
+    first = re.split(r"[;,/+(]| and ", owner, 1)[0]
+    if GIO.search(first) and not re.search(r"assist|handoff|copied|requester", owner, re.I):
+        return "mine"
+    return "involved"
+
 def words(t):
     return {w for w in re.findall(r"[a-z0-9]+", t.lower()) if len(w) > 2}
 
@@ -71,9 +82,7 @@ for i in inv["items"]:
     status = STATUS.get(i["user_status"], "Unconfirmed")
     if i.get("board_lane") in LANE_STATUS and status not in ("Done",):
         status = LANE_STATUS[i["board_lane"]]
-    # Mine only when Gio is named as an owner; shared or unconfirmed ownership stays with Others.
-    mine = (i["ownership"] != "Other owner / team / vendor" and i["user_status"] != "not mine"
-            and bool(GIO.search(i.get("owner") or "")))
+    role = "other" if i["ownership"] == "Other owner / team / vendor" or i["user_status"] == "not mine" else role_of(i.get("owner"))
     tasks = [{
         "title": clean(r.get("title")), "detail": clean(r.get("request")), "owner": clean(r.get("owner")),
         "start": r.get("first_date"), "end": r.get("last_date"),
@@ -84,7 +93,7 @@ for i in inv["items"]:
         "id": f"T{i['id']}", "ref": i["id"], "source": "Inventory", "title": title,
         "area": i["project"] if i["project"] != "CRM & attribution" else "CRM & migrations",
         "status": status, "kind": kind_of(title + " " + " ".join(t["title"] for t in tasks)),
-        "mine": mine, "owner": clean(i.get("owner")), "onBoard": bool(i.get("current_board")),
+        "role": role, "owner": clean(i.get("owner")), "onBoard": bool(i.get("current_board")),
         "lane": i.get("board_lane"), "description": clean(i.get("user_notes")) or clean(i.get("historical_evidence_summary")),
         "evidence": clean(i.get("historical_evidence_summary")), "start": i.get("first_date"),
         "end": i.get("last_date"), "doneAt": i.get("last_date") if status == "Done" else None, "tasks": tasks,
@@ -113,7 +122,7 @@ for f in sorted(glob.glob(os.path.join(BOARD, "*.json"))):
     items.append({
         "id": "B-" + os.path.basename(f)[:-5], "ref": None, "source": "Scrum Board", "title": title,
         "area": AREA_MAP.get(c.get("area", ""), "Current work"), "status": status,
-        "kind": kind_of(title + " " + (c.get("summary") or "")), "mine": c.get("owner") == "Gio",
+        "kind": kind_of(title + " " + (c.get("summary") or "")), "role": "mine" if c.get("owner") == "Gio" else "other",
         "owner": clean(c.get("owner")), "onBoard": True, "lane": c.get("bucket"),
         "description": clean(c.get("summary")), "evidence": clean(c.get("notes")),
         "start": iso_ms(c.get("createdAt")), "end": iso_ms(c.get("updatedAt")) or iso_ms(c.get("createdAt")),
@@ -128,7 +137,7 @@ for f in sorted(glob.glob(os.path.join(ROOT, "data/reports/*.json"))):
         title = clean(x["title"])
         items.append({
             "id": f"R-{slug}-{n}", "ref": None, "source": r["source"], "title": title,
-            "area": x["area"], "status": x["status"], "kind": x.get("kind") or kind_of(title), "mine": True,
+            "area": x["area"], "status": x["status"], "kind": x.get("kind") or kind_of(title), "role": role_of(x.get("owner") or "Gio"),
             "owner": clean(x.get("owner")) or "Gio", "onBoard": False, "lane": None, "description": clean(x.get("description")),
             "evidence": clean(x.get("note")), "impact": clean(x.get("impact")), "start": x.get("start") or r["start"],
             "end": x.get("doneAt") or r["date"], "doneAt": (x.get("doneAt") or r["date"]) if x["status"] == "Done" else None,
@@ -143,16 +152,32 @@ for it in items:
     o = overrides.get(it["id"])
     if not o:
         continue
-    for k in ("status", "doneAt", "mine", "area", "kind"):
+    for k in ("status", "doneAt", "area", "kind"):
         if k in o:
             it[k] = o[k]
+    if "mine" in o:
+        it["role"] = o["mine"]
     if o.get("note"):
-        it["description"] = clean(o["note"]) + (" " + it["description"] if it["description"] else "")
+        it["gioNote"] = clean(o["note"])
     for n, st in (o.get("tasks") or {}).items():
         if int(n) < len(it["tasks"]):
             it["tasks"][int(n)]["status"] = st
     if it["status"] == "Done" and not it.get("doneAt"):
         it["doneAt"] = it["end"]
+
+# Drop repeated text: evidence that repeats the description, tasks that only restate the item.
+for it in items:
+    if it.get("evidence") and it["evidence"] in (it.get("description") or ""):
+        it["evidence"] = ""
+    if it.get("description") and it.get("evidence") and it["description"] in it["evidence"]:
+        it["description"], it["evidence"] = it["evidence"], ""
+    for t in it["tasks"]:
+        if t.get("detail") == t.get("title"):
+            t["detail"] = ""
+        if t.get("owner") == it.get("owner"):
+            t["owner"] = ""
+    it["tasks"] = [t for t in it["tasks"] if t.get("detail") or t.get("status") or t["title"] != it["title"]]
+    it["mine"] = it["role"] == "mine"
 
 meta = inv["metadata"]
 out = {

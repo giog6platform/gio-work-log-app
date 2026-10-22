@@ -174,7 +174,8 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
     </div>
     <div class="spacer"></div>
     <label class="toggle"><input type="checkbox" id="unc" checked> Include Unconfirmed</label>
-    <label class="toggle"><input type="checkbox" id="team"> Include Others / Unassigned</label>
+    <label class="toggle" title="Gio is named but someone else leads"><input type="checkbox" id="inv"> Include Involved</label>
+    <label class="toggle"><input type="checkbox" id="team"> Include Others</label>
   </div>
   <div class="chips" id="kinds"></div>
   <section id="view"></section>
@@ -188,7 +189,7 @@ const STATUS = {
 };
 const KPI = ["Done", "In Progress", "Waiting", "Planned", "Paused"];
 const KINDS = ["Build", "Fix", "Support", "Migration", "Security", "Update"];
-const S = { tab: "projects", q: "", status: null, kinds: new Set(), unc: true, team: false, open: new Set(), month: null, limit: {} };
+const S = { tab: "projects", q: "", status: null, kinds: new Set(), unc: true, inv: false, team: false, open: new Set(), month: null, limit: {} };
 let DATA = [];
 
 const $ = s => document.querySelector(s);
@@ -200,6 +201,7 @@ const fmt = (d, o = { month: "short", day: "numeric", year: "numeric" }) => d ? 
 const mkey = d => d ? d.slice(0, 7) : null;
 const mlabel = k => new Date(k + "-15").toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const span = (a, b) => { const o = { month: "short", day: "numeric" }; return fmt(a, o) + (b && a && b.slice(0, 10) !== a.slice(0, 10) ? " – " + fmt(b, o) : ""); };
+const roleTag = i => i.role === "mine" ? "" : `<span class="kind" style="border-style:dashed">${i.role === "involved" ? "Involved" : "Other Owner"}</span>`;
 const chev = `<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m9 6 6 6-6 6"/></svg>`;
 
 function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -208,7 +210,8 @@ function load(k) { try { return localStorage.getItem(k); } catch (e) { return nu
 function base() {
   const q = S.q.trim().toLowerCase();
   return DATA.filter(i => {
-    if (!S.team && !i.mine) return false;
+    if (i.role === "other" && !S.team) return false;
+    if (i.role === "involved" && !S.inv) return false;
     if (!S.unc && i.status === "Unconfirmed") return false;
     if (S.kinds.size && !S.kinds.has(i.kind)) return false;
     if (q && !i._hay.includes(q)) return false;
@@ -247,7 +250,8 @@ function itemBody(i) {
       <button class="task-h" data-toggle="${esc(id)}">${chev}<span class="t">${t.status ? pill(t.status) + " " : ""}${esc(t.title)}</span><span class="d">${span(t.start, t.end)}</span></button>
       <div class="task-b"><p>${esc(t.detail || "No description recorded.")}</p>${t.owner ? `Owner: ${esc(t.owner)}` : ""}</div></div>`;
   }).join("") : "";
-  return `<p class="desc">${esc(i.description || "No description recorded.")}</p><div class="facts">${facts}</div>${impact}${ev}${tasks}`;
+  const note = i.gioNote ? `<p class="evidence" style="border-color:var(--accent)"><b style="color:var(--text);font-weight:600">Your update:</b> ${esc(i.gioNote.replace(/^Gio \d+\/\d+:\s*/, ""))}</p>` : "";
+  return note + `<p class="desc">${esc(i.description || (i.gioNote ? "" : "No description recorded."))}</p><div class="facts">${facts}</div>${impact}${ev}${tasks}`;
 }
 
 function itemRow(i) {
@@ -255,7 +259,7 @@ function itemRow(i) {
   return `<div class="row ${S.open.has(i.id) ? "open" : ""}" data-id="${esc(i.id)}">
     <button class="row-h" data-toggle="${esc(i.id)}">${chev}${pill(i.status)}
       <span class="row-title">${esc(i.title)}${i.description ? `<span class="sub">${esc(i.description)}</span>` : ""}</span>
-      <span class="row-right"><span class="kind">${esc(i.kind)}</span>${i.tasks.length ? `<span class="tc">${i.tasks.length} task${i.tasks.length > 1 ? "s" : ""}</span>` : ""}<span>${fmt(d, { month: "short", day: "numeric" })}</span></span>
+      <span class="row-right">${roleTag(i)}<span class="kind">${esc(i.kind)}</span>${i.tasks.length ? `<span class="tc">${i.tasks.length} task${i.tasks.length > 1 ? "s" : ""}</span>` : ""}<span>${fmt(d, { month: "short", day: "numeric" })}</span></span>
     </button><div class="row-body">${S.open.has(i.id) ? itemBody(i) : ""}</div></div>`;
 }
 
@@ -285,8 +289,9 @@ function renderProjects(list) {
 function events(list, mode) {
   const ev = [];
   list.forEach(i => {
-    if (i.doneAt && mode !== "started") ev.push({ i, d: i.doneAt, t: "Completed", c: "var(--done)" });
-    if (mode !== "completed" && i.start) ev.push({ i, d: i.start, t: "Started", c: col(i.status === "Done" ? "In Progress" : i.status) });
+    // One entry per item: its completion if done, otherwise when it started.
+    if (i.doneAt) ev.push({ i, d: i.doneAt, t: "Completed", c: "var(--done)" });
+    else if (mode !== "completed" && i.start) ev.push({ i, d: i.start, t: "Started", c: col(i.status) });
   });
   return ev.sort((a, b) => b.d.localeCompare(a.d));
 }
@@ -323,7 +328,7 @@ function renderTimeline(list, mode) {
         const id = e.t + "|" + e.i.id;
         return `<div class="ev" style="--c:${e.c}"><div class="card row ${S.open.has(id) ? "open" : ""}">
           <button class="row-h" data-toggle="${esc(id)}">${chev}<span class="ev-date">${fmt(e.d, { month: "short", day: "numeric" })}</span>
-          <span class="row-title">${esc(e.i.title)}<span class="sub">${esc(e.i.area)} · ${esc(e.i.kind)}</span></span>
+          <span class="row-title">${esc(e.i.title)}<span class="sub">${esc(e.i.area)} · ${esc(e.i.kind)}${e.i.role !== "mine" ? " · " + (e.i.role === "involved" ? "Involved" : "Other Owner") : ""}</span></span>
           <span class="row-right"><span class="ev-tag" style="color:${e.c}">${e.t}</span></span></button>
           <div class="row-body">${S.open.has(id) ? `<div style="margin-bottom:6px">${pill(e.i.status)}</div>` + itemBody(e.i) : ""}</div></div></div>`;
       }).join("")}</div></div>`;
@@ -367,6 +372,7 @@ document.addEventListener("click", e => {
 let qt; $("#q").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { S.q = e.target.value; render(); }, 120); });
 $("#unc").addEventListener("change", e => { S.unc = e.target.checked; render(); });
 $("#team").addEventListener("change", e => { S.team = e.target.checked; render(); });
+$("#inv").addEventListener("change", e => { S.inv = e.target.checked; render(); });
 $("#theme").addEventListener("click", () => {
   const dark = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() === "#111110";
   document.documentElement.dataset.theme = dark ? "light" : "dark"; store("theme", document.documentElement.dataset.theme);
@@ -376,8 +382,8 @@ const h = location.hash.slice(1); if (["projects", "timeline", "completed"].incl
 
 fetch(location.origin + "/data.json", { cache: "no-store" }).then(r => r.json()).then(d => {
   DATA = d.items.map(i => ({ ...i, _hay: [i.title, i.area, i.description, i.evidence, i.owner, i.kind, i.status, ...i.tasks.map(t => t.title + " " + t.detail)].join(" ").toLowerCase() }));
-  $("#asof").textContent = "Snapshot " + fmt(d.snapshot) + " · " + d.items.filter(i => i.mine).length + " items";
-  $("#foot").textContent = `Sources: task inventory (email-derived, covering ${fmt(d.coverage[0])} to ${fmt(d.coverage[1])}) and the G6 Scrum Board. "Unconfirmed" means not yet confirmed by Gio, not that it is open. Types are auto-tagged from titles.`;
+  $("#asof").textContent = "Snapshot " + fmt(d.snapshot) + " · " + d.items.filter(i => i.role === "mine").length + " yours";
+  $("#foot").textContent = `Sources: task inventory (email-derived, covering ${fmt(d.coverage[0])} to ${fmt(d.coverage[1])}) and the G6 Scrum Board. "Unconfirmed" means not yet confirmed by Gio, not that it is open. Yours = you are the first-named owner. Involved = you are named but someone else leads. Types are auto-tagged from titles.`;
   render();
 }).catch(() => { $("#view").innerHTML = `<div class="empty">Could not load data.json.</div>`; });
 </script>
