@@ -450,6 +450,13 @@ $("#theme").addEventListener("click", () => {
 const th = load("theme"); if (th) document.documentElement.dataset.theme = th;
 const h = location.hash.slice(1); if (["projects", "timeline", "started", "progress", "ongoing", "blocked", "completed", "backlog"].includes(h)) S.tab = h;
 
+// Reload automatically when a new version is deployed (checked every minute).
+let VER = null;
+setInterval(() => fetch(location.origin + "/version", { cache: "no-store" }).then(r => r.ok ? r.text() : null).then(v => {
+  if (!v) return; if (VER && v !== VER) location.reload(); VER = v;
+}).catch(() => {}), 60000);
+fetch(location.origin + "/version", { cache: "no-store" }).then(r => r.text()).then(v => VER = v).catch(() => {});
+
 fetch(location.origin + "/data.json", { cache: "no-store" }).then(r => r.json()).then(d => {
   DATA = d.items.map(i => ({ ...i, _hay: [i.title, i.area, i.description, i.evidence, i.owner, i.kind, i.status, ...i.tasks.map(t => t.title + " " + t.detail)].join(" ").toLowerCase() }));
   $("#asof").textContent = "Snapshot " + fmt(d.snapshot) + " · " + d.items.filter(i => i.role === "mine").length + " yours";

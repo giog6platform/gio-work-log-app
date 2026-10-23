@@ -10,6 +10,7 @@ const PASS = process.env.SITE_PASSWORD;
 const ROOT = path.join(__dirname, "public");
 // Task data is kept out of git: a Render secret file in production, data/out locally.
 const DATA_FILE = process.env.DATA_FILE || ["/etc/secrets/data.json", path.join(__dirname, "data/out/data.json")].find(f => fs.existsSync(f));
+const BOOT = String(Date.now()); // changes on every deploy, so open pages can tell they are stale
 const TYPES = { ".html": "text/html; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".js": "text/javascript", ".css": "text/css" };
 
 if (!PASS) {
@@ -38,6 +39,7 @@ http.createServer((req, res) => {
     "Cache-Control": "no-store",
   };
   if (req.url === "/healthz") { res.writeHead(200, headers); return res.end("ok"); }
+  if (req.url === "/version" && authorized(req)) { res.writeHead(200, headers); return res.end(BOOT); }
   if (!authorized(req)) {
     res.writeHead(401, { ...headers, "WWW-Authenticate": 'Basic realm="Work Log", charset="UTF-8"' });
     return res.end("Authentication required");
