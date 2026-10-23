@@ -387,6 +387,19 @@ function renderGroups(list, statuses, labels) {
       <div class="area-body">${its.slice(0, S.limit["g:" + st] || 60).map(itemRow).join("")}${its.length > (S.limit["g:" + st] || 60) ? `<button class="chip more" data-more="g:${esc(st)}">Show more</button>` : ""}</div></div>`).join("");
 }
 
+// Started: everything you began, grouped by the month it started, newest first, with today's status.
+function renderStarted(list) {
+  const its = list.filter(i => i.start).sort((a, b) => b.start.localeCompare(a.start));
+  if (!its.length) return `<div class="empty">Nothing here with these filters.</div>`;
+  const months = {}; its.forEach(i => (months[mkey(i.start)] ||= []).push(i));
+  return Object.keys(months).sort().reverse().map(m => {
+    const g = months[m], open = g.filter(i => !["Done", "Likely Done", "Dropped", "Deprecated", "Handed Off"].includes(i.status)).length;
+    return `<div class="area open"><div class="area-h" style="cursor:default;grid-template-columns:1fr auto">
+      <div><div class="area-title">Started ${mlabel(m)}</div><div class="area-meta">${g.length} started · ${g.length - open} closed · ${open} still open</div></div></div>
+      <div class="area-body">${g.map(itemRow).join("")}</div></div>`;
+  }).join("");
+}
+
 function render() {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === S.tab));
   renderKpis(); renderKinds();
@@ -394,7 +407,7 @@ function render() {
   const v = $("#view");
   if (S.tab === "projects") v.innerHTML = renderProjects(list);
   else if (S.tab === "timeline") v.innerHTML = renderTimeline(list, "both");
-  else if (S.tab === "started") v.innerHTML = renderGroups(list, ["Unconfirmed"], { Unconfirmed: "Started, Outcome Not Confirmed" });
+  else if (S.tab === "started") v.innerHTML = renderStarted(list);
   else if (S.tab === "progress") v.innerHTML = renderGroups(list, ["In Progress", "Partial", "Planned"], { "In Progress": "In Progress", Partial: "Partially Done", Planned: "Planned / Up Next" });
   else if (S.tab === "blocked") v.innerHTML = renderGroups(list, ["Waiting", "Paused"], { Waiting: "Blocked / Waiting On Someone", Paused: "Paused / Parked" });
   else if (S.tab === "backlog") v.innerHTML = renderGroups(list, ["Backlog", "Dropped", "Deprecated", "Not Done"], { Backlog: "Backlog / Revisit Later", Dropped: "Dropped / No Longer Needed", Deprecated: "Deprecated / Retired", "Not Done": "Not Done" });
