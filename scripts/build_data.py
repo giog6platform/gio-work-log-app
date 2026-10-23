@@ -165,6 +165,9 @@ for it in items:
     if it["status"] == "Done" and not it.get("doneAt"):
         it["doneAt"] = it["end"]
 
+# Items Gio says are the same work as another item are hidden.
+items[:] = [it for it in items if not (overrides.get(it["id"]) or {}).get("hide")]
+
 # Report items that duplicate an inventory item (data/merges.json) fold into it.
 # Status: Gio's call wins, then a Done from either side, then the inventory status.
 mp = os.path.join(ROOT, "data/merges.json")

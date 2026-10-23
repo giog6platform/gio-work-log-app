@@ -183,7 +183,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
       <button class="tab" data-tab="ongoing">Ongoing</button>
       <button class="tab" data-tab="blocked">Blocked</button>
       <button class="tab" data-tab="completed">Completed</button>
-      <button class="tab" data-tab="dropped">No Longer Needed</button>
+      <button class="tab" data-tab="backlog">Backlog</button>
     </div>
     <div class="spacer"></div>
     <div class="toggles"><label class="toggle"><input type="checkbox" id="unc" checked> Include Unconfirmed</label>
@@ -199,7 +199,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srg
 const STATUS = {
   "Done": "done", "In Progress": "prog", "Waiting": "wait", "Planned": "plan", "Paused": "pause",
   "Monitoring": "mon", "Unconfirmed": "unc", "Teammate": "pause", "Not Mine": "pause", "Deprecated": "pause",
-  "Likely Done": "done", "Dropped": "pause", "Handed Off": "mon", "Ongoing": "mon", "Partial": "wait", "Not Done": "pause",
+  "Likely Done": "done", "Dropped": "pause", "Backlog": "plan", "Handed Off": "mon", "Ongoing": "mon", "Partial": "wait", "Not Done": "pause",
 };
 // KPI cards group related statuses.
 const GROUPS = {
@@ -283,7 +283,7 @@ function itemRow(i) {
     </button><div class="row-body">${S.open.has(i.id) ? itemBody(i) : ""}</div></div>`;
 }
 
-const ORDER = ["In Progress", "Partial", "Waiting", "Planned", "Monitoring", "Ongoing", "Handed Off", "Unconfirmed", "Paused", "Teammate", "Likely Done", "Done", "Dropped", "Not Mine", "Deprecated", "Not Done"];
+const ORDER = ["In Progress", "Partial", "Waiting", "Planned", "Backlog", "Monitoring", "Ongoing", "Handed Off", "Unconfirmed", "Paused", "Teammate", "Likely Done", "Done", "Dropped", "Not Mine", "Deprecated", "Not Done"];
 const byRecent = (a, b) => (b.doneAt || b.end || b.start || "").localeCompare(a.doneAt || a.end || a.start || "");
 
 function renderProjects(list) {
@@ -397,7 +397,7 @@ function render() {
   else if (S.tab === "started") v.innerHTML = renderGroups(list, ["Unconfirmed"], { Unconfirmed: "Started, Outcome Not Confirmed" });
   else if (S.tab === "progress") v.innerHTML = renderGroups(list, ["In Progress", "Partial", "Planned"], { "In Progress": "In Progress", Partial: "Partially Done", Planned: "Planned / Up Next" });
   else if (S.tab === "blocked") v.innerHTML = renderGroups(list, ["Waiting", "Paused"], { Waiting: "Blocked / Waiting On Someone", Paused: "Paused / Parked" });
-  else if (S.tab === "dropped") v.innerHTML = renderGroups(list, ["Dropped", "Deprecated", "Not Done"], { Dropped: "Dropped / No Longer Needed", Deprecated: "Deprecated / Retired", "Not Done": "Not Done" });
+  else if (S.tab === "backlog") v.innerHTML = renderGroups(list, ["Backlog", "Dropped", "Deprecated", "Not Done"], { Backlog: "Backlog / Revisit Later", Dropped: "Dropped / No Longer Needed", Deprecated: "Deprecated / Retired", "Not Done": "Not Done" });
   else if (S.tab === "ongoing") v.innerHTML = renderOngoing(list.filter(i => ONGOING.includes(i.status)));
   else v.innerHTML = renderTimeline(list.filter(i => i.doneAt), "completed");
 }
@@ -435,7 +435,7 @@ $("#theme").addEventListener("click", () => {
   document.documentElement.dataset.theme = dark ? "light" : "dark"; store("theme", document.documentElement.dataset.theme);
 });
 const th = load("theme"); if (th) document.documentElement.dataset.theme = th;
-const h = location.hash.slice(1); if (["projects", "timeline", "started", "progress", "ongoing", "blocked", "completed", "dropped"].includes(h)) S.tab = h;
+const h = location.hash.slice(1); if (["projects", "timeline", "started", "progress", "ongoing", "blocked", "completed", "backlog"].includes(h)) S.tab = h;
 
 fetch(location.origin + "/data.json", { cache: "no-store" }).then(r => r.json()).then(d => {
   DATA = d.items.map(i => ({ ...i, _hay: [i.title, i.area, i.description, i.evidence, i.owner, i.kind, i.status, ...i.tasks.map(t => t.title + " " + t.detail)].join(" ").toLowerCase() }));

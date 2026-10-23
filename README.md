@@ -13,3 +13,6 @@ Private work log with projects, tasks, completions and a timeline. It's a Node s
 
 ## Local
 `node --env-file=$HOME/.env server.js`, then open http://localhost:3000. Credentials live in `~/.env`.
+
+## Code changes
+Commit here, then run `scripts/deploy.sh "message"`. It copies the code to the public deploy repo, pushes it and triggers a Render deploy.
